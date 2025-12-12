@@ -25,6 +25,18 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    const db = client.db("easy-jatra-db");
+    const ticketsCollection = db.collection("tickets");
+
+    // tickets related APIs
+    app.get("/tickets", async (req, res) => {});
+
+    app.post("/parcels", async (req, res) => {
+      const ticket = req.body;
+      const result = ticketsCollection.insertOne(ticket);
+      res.send(ticket);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
