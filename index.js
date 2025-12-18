@@ -169,8 +169,29 @@ async function run() {
     // users related APIs
     app.post("/user", async (req, res) => {
       const userData = req.body;
-      console.log(userData);
-      res.send(userData);
+      // console.log(userData);
+      userData.created_at = new Date().toISOString();
+      userData.last_loggedIn = new Date().toISOString();
+      userData.role = "customer";
+      const query = {
+        email: userData.email,
+      };
+      const alreadyExist = await usersCollection.findOne({
+        email: userData.email,
+      });
+      console.log("user already here", !!alreadyExist);
+      if (alreadyExist) {
+        console.log("updating user info");
+        const result = await usersCollection.updateOne(query, {
+          $set: { last_loggedIn: new Date().toISOString() },
+        });
+        return res.send(result);
+      }
+
+      console.log("saving new user info");
+
+      const result = await usersCollection.insertOne(userData);
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
