@@ -81,10 +81,34 @@ async function run() {
           ticketId: paymentInfo?.ticketId,
           customer: paymentInfo?.customer.email,
         },
-        success_url: `${process.env.CLIENT_URL}/payment-success`,
+        success_url: `${process.env.CLIENT_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.CLIENT_URL}/ticket/${paymentInfo?.ticketId}`,
       });
       res.send({ url: session.url });
+    });
+
+    app.post("/payment-success", async (req, res) => {
+      const { sessionId } = req.body;
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const ticket = await ticketsCollection.findOne({
+        _id: new ObjectId(session.metadata.ticketId),
+      });
+      // console.log(session);
+      if (session.status === "complete") {
+        // save order in db
+        const orderInfo = {
+          ticketId: session.metadata.ticketId,
+          transactionId: session.payment_intent,
+          customer: session.metadata.customer,
+          status: "pending",
+          vendor: ticket.vendor,
+          name: ticket.name,
+          category: ticket.category,
+          quantity: 1,
+          price: session.amount_total / 100,
+        };
+        console.log(orderInfo);
+      }
     });
 
     // Send a ping to confirm a successful connection
