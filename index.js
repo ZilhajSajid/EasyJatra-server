@@ -2,7 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 4000;
 
 const admin = require("firebase-admin");
@@ -37,12 +38,53 @@ async function run() {
     const ticketsCollection = db.collection("tickets");
 
     // tickets related APIs
-    app.get("/tickets", async (req, res) => {});
+    app.get("/tickets", async (req, res) => {
+      const result = await ticketsCollection.find().toArray();
+      res.send(result);
+    });
 
-    app.post("/parcels", async (req, res) => {
+    app.get("/tickets/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await ticketsCollection.findOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
+    app.post("/tickets", async (req, res) => {
       const ticket = req.body;
-      const result = ticketsCollection.insertOne(ticket);
-      res.send(ticket);
+      console.log(ticket);
+      const result = await ticketsCollection.insertOne(ticket);
+      res.send(result);
+    });
+
+    // payment related APIs
+    app.post("/create-checkout-session", async (req, res) => {
+      const paymentInfo = req.body;
+      // console.log("payment information", paymentInfo);
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: paymentInfo?.name,
+                images: [paymentInfo?.image],
+                description: paymentInfo?.description,
+              },
+              unit_amount: paymentInfo?.price * 100,
+            },
+            quantity: paymentInfo?.quantity,
+          },
+        ],
+        customer_email: paymentInfo?.customer?.email,
+        mode: "payment",
+        metadata: {
+          ticketId: paymentInfo?.ticketId,
+          customer: paymentInfo?.customer.email,
+        },
+        success_url: `${process.env.CLIENT_URL}/payment-success`,
+        cancel_url: `${process.env.CLIENT_URL}/ticket/${paymentInfo?.ticketId}`,
+      });
+      res.send({ url: session.url });
     });
 
     // Send a ping to confirm a successful connection
