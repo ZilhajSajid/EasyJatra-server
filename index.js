@@ -37,6 +37,7 @@ async function run() {
     const db = client.db("easy-jatra-db");
     const ticketsCollection = db.collection("tickets");
     const ordersCollection = db.collection("orders");
+    const usersCollection = db.collection("users");
 
     // tickets related APIs
     app.get("/tickets", async (req, res) => {
@@ -163,6 +164,13 @@ async function run() {
         .find({ "vendor.email": email })
         .toArray();
       res.send(result);
+    });
+
+    // users related APIs
+    app.post("/user", async (req, res) => {
+      const userData = req.body;
+      console.log(userData);
+      res.send(userData);
     });
 
     // Send a ping to confirm a successful connection
