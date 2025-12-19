@@ -15,12 +15,15 @@ admin.initializeApp({
 });
 
 // middleware
-app.use(express.json());
+
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: [process.env.CLIENT_URL],
+    credentials: true,
+    optionsSuccessStatus: 200,
   })
 );
+app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.bmwxjo0.mongodb.net/?appName=Cluster0`;
 
@@ -58,6 +61,7 @@ async function run() {
     const ticketsCollection = db.collection("tickets");
     const ordersCollection = db.collection("orders");
     const usersCollection = db.collection("users");
+    const vendorRequestCollection = db.collection("vendorRequests");
 
     // tickets related APIs
     app.get("/tickets", async (req, res) => {
@@ -157,6 +161,42 @@ async function run() {
       const result = await ordersCollection
         .find({ customer: req.tokenEmail })
         .toArray();
+      res.send(result);
+    });
+
+    // vendor APIs
+    // be a vendor req
+    app.post("/become-vendor", verifyJWT, async (req, res) => {
+      const email = req.tokenEmail;
+      const alreadyExist = await vendorRequestCollection.findOne({ email });
+      if (alreadyExist)
+        return res
+          .status(409)
+          .send({ message: "Your request is processing. Please Wait!" });
+      const result = await vendorRequestCollection.insertOne({ email });
+      res.send(result);
+    });
+
+    // get vendor request for admin
+    app.get("/vendor-request", verifyJWT, async (req, res) => {
+      const result = await vendorRequestCollection.find().toArray();
+      res.send(result);
+    });
+
+    // get all users for admin
+    app.get("/users", verifyJWT, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    // update a users role
+    app.patch("/update-role", verifyJWT, async (req, res) => {
+      const { email, role } = req.body;
+      const result = await usersCollection.updateOne(
+        { email },
+        { $set: { role } }
+      );
+      await vendorRequestCollection.deleteOne({ email });
       res.send(result);
     });
 
