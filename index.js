@@ -63,6 +63,28 @@ async function run() {
     const usersCollection = db.collection("users");
     const vendorRequestCollection = db.collection("vendorRequests");
 
+    // role middlewares
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.tokenEmail;
+      const user = await usersCollection.findOne({ email });
+      if (user || user?.role !== "admin")
+        return res
+          .status(403)
+          .send({ message: "Admin only actions!", role: user?.role });
+
+      next();
+    };
+    const verifyVendor = async (req, res, next) => {
+      const email = req.tokenEmail;
+      const user = await usersCollection.findOne({ email });
+      if (user || user?.role !== "vendor")
+        return res
+          .status(403)
+          .send({ message: "Vendor only actions!", role: user?.role });
+
+      next();
+    };
+
     // tickets related APIs
     app.get("/tickets", async (req, res) => {
       const result = await ticketsCollection.find().toArray();
@@ -75,7 +97,7 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/tickets", async (req, res) => {
+    app.post("/tickets", verifyJWT, verifyVendor, async (req, res) => {
       const ticket = req.body;
       console.log(ticket);
       const result = await ticketsCollection.insertOne(ticket);
@@ -178,19 +200,22 @@ async function run() {
     });
 
     // get vendor request for admin
-    app.get("/vendor-request", verifyJWT, async (req, res) => {
+    app.get("/vendor-request", verifyJWT, verifyAdmin, async (req, res) => {
       const result = await vendorRequestCollection.find().toArray();
       res.send(result);
     });
 
     // get all users for admin
-    app.get("/users", verifyJWT, async (req, res) => {
-      const result = await usersCollection.find().toArray();
+    app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
+      const adminEmail = req.tokenEmail;
+      const result = await usersCollection
+        .find({ email: { $ne: adminEmail } })
+        .toArray();
       res.send(result);
     });
 
     // update a users role
-    app.patch("/update-role", verifyJWT, async (req, res) => {
+    app.patch("/update-role", verifyJWT, verifyAdmin, async (req, res) => {
       const { email, role } = req.body;
       const result = await usersCollection.updateOne(
         { email },
@@ -210,22 +235,32 @@ async function run() {
     });
 
     // get all tickets for vendors by email
-    app.get("/my-inventory/:email", async (req, res) => {
-      const email = req.params.email;
-      const result = await ticketsCollection
-        .find({ "vendor.email": email })
-        .toArray();
-      res.send(result);
-    });
+    app.get(
+      "/my-inventory/:email",
+      verifyJWT,
+      verifyVendor,
+      async (req, res) => {
+        const email = req.params.email;
+        const result = await ticketsCollection
+          .find({ "vendor.email": email })
+          .toArray();
+        res.send(result);
+      }
+    );
 
-    // get all orders for a seller by email
-    app.get("/manage-orders/:email", async (req, res) => {
-      const email = req.params.email;
-      const result = await ordersCollection
-        .find({ "vendor.email": email })
-        .toArray();
-      res.send(result);
-    });
+    // get all orders for a vendor by email
+    app.get(
+      "/manage-orders/:email",
+      verifyJWT,
+      verifyVendor,
+      async (req, res) => {
+        const email = req.params.email;
+        const result = await ordersCollection
+          .find({ "vendor.email": email })
+          .toArray();
+        res.send(result);
+      }
+    );
 
     // users related APIs
     app.post("/user", async (req, res) => {
